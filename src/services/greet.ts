@@ -16,7 +16,7 @@ import { format } from "date-fns";
 import { StringIndexed } from "@slack/bolt/dist/types/helpers";
 import { utcToZonedTime } from "date-fns-tz";
 import { fetchReactions, fetchUsers } from "~/apis/slack";
-import { fetchWFOUsers } from "~/apis/sheet";
+import { fetchWFOUsers, fetchLeaveUsers } from "~/apis/sheet";
 import { isHoliday } from "~/apis/holiday";
 
 const trigger = ":ohayou:";
@@ -32,6 +32,7 @@ const blocks = (
   date: Date,
   users: Member[],
   wfoUserIds: string[],
+  leaveUserIds: string[],
   reactions: Reaction[] = []
 ): (KnownBlock | Block)[] => {
   const wfoUserIdSet = new Set<string>(wfoUserIds);
@@ -40,11 +41,18 @@ const blocks = (
     return !!id && wfoUserIdSet.has(id);
   });
 
+  const leaveUserIdSet = new Set<string>(leaveUserIds);
+
+  const leaveUsers: Member[] = users.filter(({ id }: Member): boolean => {
+    return !!id && leaveUserIdSet.has(id);
+  });
+
   const reactedUserIdSet = new Set<string>([
     ...reactions.flatMap(({ users }: Reaction): string[] => {
       return users ?? [];
     }),
     ...wfoUserIds,
+    ...leaveUserIds,
   ]);
 
   const noReactedUsers: Member[] = users.filter(({ id }: Member): boolean => {
@@ -113,6 +121,23 @@ const blocks = (
       text: {
         type: "mrkdwn",
         text:
+          `:oyasumi: (${leaveUsers.length ?? 0})` +
+          (leaveUsers.length > 0
+            ? `\n\`\`\`${(
+                leaveUsers.map((user: Member): string => {
+                  return (
+                    user.profile?.display_name || user.real_name || "unknown"
+                  );
+                }) ?? []
+              ).join(", ")}\`\`\``
+            : ""),
+      },
+    },
+    {
+      type: "section",
+      text: {
+        type: "mrkdwn",
+        text:
           `:no-ria: (${noReactedUsers.length})` +
           (noReactedUsers.length > 0
             ? `\n\`\`\`${(
@@ -150,7 +175,12 @@ export const postChannelGreetStartHandler: CustomRoute["handler"] = (
     return client.chat.postMessage({
       channel: params["id"],
       text: title(date),
-      blocks: blocks(date, await fetchUsers(), await fetchWFOUsers(date)),
+      blocks: blocks(
+        date,
+        await fetchUsers(),
+        await fetchWFOUsers(date),
+        await fetchLeaveUsers(date)
+      ),
     });
   };
 
@@ -200,6 +230,7 @@ const reactionEventHandler: Middleware<
       date,
       await fetchUsers(),
       await fetchWFOUsers(date),
+      await fetchLeaveUsers(date),
       response.message?.reactions ?? []
     ),
   });
