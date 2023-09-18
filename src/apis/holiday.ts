@@ -28,10 +28,11 @@ const fetchHolidays = async (year: number | string): Promise<Holidays> => {
 };
 
 export const isHoliday = async (date: Date): Promise<boolean> => {
-  const holidays = await fetchHolidays(date.getFullYear());
-  return (
-    format(utcToZonedTime(date, "Asia/Tokyo"), `yyyy-MM-dd`, {
+  const dateWithTz = utcToZonedTime(date, "Asia/Tokyo");
+  const holidays = await fetchHolidays(dateWithTz.getFullYear());
+  return Object.keys(holidays).includes(
+    format(dateWithTz, `yyyy-MM-dd`, {
       locale: ja,
-    }) in Object.keys(holidays)
+    })
   );
 };
