@@ -4,8 +4,9 @@ import {
   postChannelGreetStartHandler,
   reactionAddedEventHandler,
   reactionRemovedEventHandler,
-} from "~/services/greet";
+} from "~/services/greet/start";
 import { getHealthzHandler } from "~/services/healthz";
+import { postChannelGreetEndHandler } from "~/services/greet/end";
 
 export const app = new App({
   ...config,
@@ -24,6 +25,11 @@ export const app = new App({
       path: "/channel/:id/greet/start",
       method: ["POST"],
       handler: postChannelGreetStartHandler,
+    },
+    {
+      path: "/channel/:id/greet/end",
+      method: ["POST"],
+      handler: postChannelGreetEndHandler,
     },
   ],
 });
