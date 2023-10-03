@@ -16,6 +16,7 @@ const config = {
   env: { node: true, es2021: true },
   rules: {
     // custom
+    "@typescript-eslint/consistent-type-imports": "error",
     "@typescript-eslint/no-unused-vars": ["error", { args: "none" }],
   },
 };

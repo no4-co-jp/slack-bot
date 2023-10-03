@@ -1,19 +1,18 @@
-import {
+import type {
   Block,
   CustomRoute,
   KnownBlock,
   Middleware,
-  SectionBlock,
   SlackEventMiddlewareArgs,
 } from "@slack/bolt";
-import { ChatPostMessageResponse } from "@slack/web-api";
-import { Reaction } from "@slack/web-api/dist/response/ReactionsGetResponse";
-import { Member } from "@slack/web-api/dist/response/UsersListResponse";
-import { ParamsIncomingMessage } from "@slack/bolt/dist/receivers/ParamsIncomingMessage";
-import { ServerResponse } from "http";
+import type { ChatPostMessageResponse } from "@slack/web-api";
+import type { Reaction } from "@slack/web-api/dist/response/ReactionsGetResponse";
+import type { Member } from "@slack/web-api/dist/response/UsersListResponse";
+import type { ParamsIncomingMessage } from "@slack/bolt/dist/receivers/ParamsIncomingMessage";
+import type { ServerResponse } from "http";
 import { client } from "~/client";
 import { format } from "date-fns";
-import { StringIndexed } from "@slack/bolt/dist/types/helpers";
+import type { StringIndexed } from "@slack/bolt/dist/types/helpers";
 import { utcToZonedTime } from "date-fns-tz";
 import { fetchReactions, fetchUsers } from "~/apis/slack";
 import { fetchWFOUsers, fetchLeaveUsers } from "~/apis/sheet";
@@ -21,31 +20,37 @@ import { isHoliday } from "~/apis/holiday";
 
 const trigger = ":ohayou:";
 
-const title = (date: Date): string => {
+const toTitle = (date: Date): string => {
   return `${trigger} ${format(
     utcToZonedTime(date, "Asia/Tokyo"),
     "yyyy/MM/dd (E)"
   )}`;
 };
 
-const blocks = (
+const toUserNames = (users: Member[]): string[] => {
+  return (
+    users.map((user: Member): string => {
+      return user.profile?.display_name || user.real_name || "unknown";
+    }) ?? []
+  );
+};
+
+type ReactionRecord = {
+  name: string;
+  users: Member[];
+};
+
+const toReactionRecords = async (
   date: Date,
-  users: Member[],
-  wfoUserIds: string[],
-  leaveUserIds: string[],
   reactions: Reaction[] = []
-): (KnownBlock | Block)[] => {
+): Promise<ReactionRecord[]> => {
+  const users = await fetchUsers();
+  const wfoUserIds = await fetchWFOUsers(date);
+  const leaveUserIds = await fetchLeaveUsers(date);
+
   const wfoUserIdSet = new Set<string>(wfoUserIds);
 
-  const wfoUsers: Member[] = users.filter(({ id }: Member): boolean => {
-    return !!id && wfoUserIdSet.has(id);
-  });
-
   const leaveUserIdSet = new Set<string>(leaveUserIds);
-
-  const leaveUsers: Member[] = users.filter(({ id }: Member): boolean => {
-    return !!id && leaveUserIdSet.has(id);
-  });
 
   const reactedUserIdSet = new Set<string>([
     ...reactions.flatMap(({ users }: Reaction): string[] => {
@@ -60,11 +65,56 @@ const blocks = (
   });
 
   return [
+    ...reactions.map((reaction: Reaction): ReactionRecord => {
+      return {
+        name: reaction.name ?? "-",
+        users:
+          reaction.users?.reduce((prev: Member[], id: string): Member[] => {
+            const user = users.find((user: Member): boolean => {
+              return id === user.id;
+            });
+
+            return user ? [...prev, user] : prev;
+          }, []) ?? [],
+      };
+    }),
+    ...(wfoUserIdSet.size > 0
+      ? [
+          {
+            name: "zisya",
+            users: users.filter(({ id }: Member): boolean => {
+              return !!id && wfoUserIdSet.has(id);
+            }),
+          },
+        ]
+      : []),
+    ...(leaveUserIdSet.size > 0
+      ? [
+          {
+            name: "oyasumi",
+            users: users.filter(({ id }: Member): boolean => {
+              return !!id && leaveUserIdSet.has(id);
+            }),
+          },
+        ]
+      : []),
+    {
+      name: "no-ria",
+      users: noReactedUsers,
+    },
+  ];
+};
+
+const toBlocks = (
+  title: string,
+  reactionRecords: ReactionRecord[]
+): (KnownBlock | Block)[] => {
+  return [
     {
       type: "header",
       text: {
         type: "plain_text",
-        text: title(date),
+        text: title,
         emoji: true,
       },
     },
@@ -78,77 +128,21 @@ const blocks = (
     {
       type: "divider",
     },
-    ...reactions.map((reaction: Reaction): SectionBlock => {
+    ...reactionRecords.map((reactionRecord: ReactionRecord) => {
       return {
         type: "section",
         text: {
           type: "mrkdwn",
           text:
-            `:${reaction.name ?? "-"}: (${reaction.count ?? 0})` +
-            `\n\`\`\`${(
-              reaction.users?.map((id: string): string => {
-                const user = users.find((user: Member): boolean => {
-                  return id === user.id;
-                });
-
-                return (
-                  user?.profile?.display_name || user?.real_name || "unknown"
-                );
-              }) ?? []
-            ).join(", ")}\`\`\``,
+            `:${reactionRecord.name}: (${reactionRecord.users.length})` +
+            (reactionRecord.users.length > 0
+              ? `\n\`\`\`${toUserNames(reactionRecord.users).join(", ")}\`\`\``
+              : ``),
         },
       };
     }),
     {
-      type: "section",
-      text: {
-        type: "mrkdwn",
-        text:
-          `:zisya: (${wfoUsers.length ?? 0})` +
-          (wfoUsers.length > 0
-            ? `\n\`\`\`${(
-                wfoUsers.map((user: Member): string => {
-                  return (
-                    user.profile?.display_name || user.real_name || "unknown"
-                  );
-                }) ?? []
-              ).join(", ")}\`\`\``
-            : ""),
-      },
-    },
-    {
-      type: "section",
-      text: {
-        type: "mrkdwn",
-        text:
-          `:oyasumi: (${leaveUsers.length ?? 0})` +
-          (leaveUsers.length > 0
-            ? `\n\`\`\`${(
-                leaveUsers.map((user: Member): string => {
-                  return (
-                    user.profile?.display_name || user.real_name || "unknown"
-                  );
-                }) ?? []
-              ).join(", ")}\`\`\``
-            : ""),
-      },
-    },
-    {
-      type: "section",
-      text: {
-        type: "mrkdwn",
-        text:
-          `:no-ria: (${noReactedUsers.length})` +
-          (noReactedUsers.length > 0
-            ? `\n\`\`\`${(
-                noReactedUsers.map((user: Member): string => {
-                  return (
-                    user.profile?.display_name || user.real_name || "unknown"
-                  );
-                }) ?? []
-              ).join(", ")}\`\`\``
-            : ""),
-      },
+      type: "divider",
     },
   ];
 };
@@ -174,13 +168,8 @@ export const postChannelGreetStartHandler: CustomRoute["handler"] = (
 
     return client.chat.postMessage({
       channel: params["id"],
-      text: title(date),
-      blocks: blocks(
-        date,
-        await fetchUsers(),
-        await fetchWFOUsers(date),
-        await fetchLeaveUsers(date)
-      ),
+      text: toTitle(date),
+      blocks: toBlocks(toTitle(date), await toReactionRecords(date)),
     });
   };
 
@@ -222,17 +211,16 @@ const reactionEventHandler: Middleware<
 
   const date = new Date(Number(ts) * 1000);
 
+  const reactions = await toReactionRecords(
+    date,
+    response.message?.reactions ?? []
+  );
+
   await client.chat.update({
     channel,
     ts,
-    text: title(date),
-    blocks: blocks(
-      date,
-      await fetchUsers(),
-      await fetchWFOUsers(date),
-      await fetchLeaveUsers(date),
-      response.message?.reactions ?? []
-    ),
+    text: toTitle(date),
+    blocks: toBlocks(toTitle(date), reactions),
   });
 };
 

@@ -1,14 +1,14 @@
-import {
+import type {
   Member,
   UsersListResponse,
 } from "@slack/web-api/dist/response/UsersListResponse";
-import {
+import type {
   Reaction,
   ReactionsGetResponse,
 } from "@slack/web-api/dist/response/ReactionsGetResponse";
 import { client } from "~/client";
 import { cache } from "~/cache";
-import { ReactionAddedEvent, ReactionRemovedEvent } from "@slack/bolt";
+import type { ReactionAddedEvent, ReactionRemovedEvent } from "@slack/bolt";
 
 export const fetchUsers = async (): Promise<Member[]> => {
   const key = "slack.users.list";

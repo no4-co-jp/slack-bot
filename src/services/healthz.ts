@@ -1,6 +1,6 @@
-import { CustomRoute } from "@slack/bolt";
-import { ParamsIncomingMessage } from "@slack/bolt/dist/receivers/ParamsIncomingMessage";
-import { ServerResponse } from "http";
+import type { CustomRoute } from "@slack/bolt";
+import type { ParamsIncomingMessage } from "@slack/bolt/dist/receivers/ParamsIncomingMessage";
+import type { ServerResponse } from "http";
 
 export const getHealthzHandler: CustomRoute["handler"] = (
   req: ParamsIncomingMessage,

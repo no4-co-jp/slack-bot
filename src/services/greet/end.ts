@@ -1,7 +1,7 @@
-import { Block, CustomRoute, KnownBlock } from "@slack/bolt";
-import { ChatPostMessageResponse } from "@slack/web-api";
-import { ParamsIncomingMessage } from "@slack/bolt/dist/receivers/ParamsIncomingMessage";
-import { ServerResponse } from "http";
+import type { Block, CustomRoute, KnownBlock } from "@slack/bolt";
+import type { ChatPostMessageResponse } from "@slack/web-api";
+import type { ParamsIncomingMessage } from "@slack/bolt/dist/receivers/ParamsIncomingMessage";
+import type { ServerResponse } from "http";
 import { client } from "~/client";
 import { format } from "date-fns";
 import { utcToZonedTime } from "date-fns-tz";
@@ -9,22 +9,20 @@ import { isHoliday } from "~/apis/holiday";
 
 const trigger = ":otsukaresama:";
 
-const title = (date: Date): string => {
+const toTitle = (date: Date): string => {
   return `${trigger} ${format(
     utcToZonedTime(date, "Asia/Tokyo"),
     "yyyy/MM/dd (E)"
   )}`;
 };
 
-const blocks = (date: Date): (KnownBlock | Block)[] => {
-  format(utcToZonedTime(date, "Asia/Tokyo"), "yyyy/MM/dd (E)");
-
+const toBlocks = (date: Date): (KnownBlock | Block)[] => {
   return [
     {
       type: "header",
       text: {
         type: "plain_text",
-        text: title(date),
+        text: toTitle(date),
         emoji: true,
       },
     },
@@ -64,8 +62,8 @@ export const postChannelGreetEndHandler: CustomRoute["handler"] = (
 
     return client.chat.postMessage({
       channel: params["id"],
-      text: title(date),
-      blocks: blocks(date),
+      text: toTitle(date),
+      blocks: toBlocks(date),
     });
   };
 
