@@ -5,7 +5,6 @@ import type {
   Middleware,
   SlackEventMiddlewareArgs,
 } from "@slack/bolt";
-import type { ChatPostMessageResponse } from "@slack/web-api";
 import type { Reaction } from "@slack/web-api/dist/response/ReactionsGetResponse";
 import type { Member } from "@slack/web-api/dist/response/UsersListResponse";
 import type { ParamsIncomingMessage } from "@slack/bolt/dist/receivers/ParamsIncomingMessage";
@@ -151,7 +150,7 @@ export const postChannelGreetStartHandler: CustomRoute["handler"] = (
   req: ParamsIncomingMessage,
   res: ServerResponse
 ): void => {
-  const handler = async (): Promise<ChatPostMessageResponse> => {
+  const handler = async (): Promise<void> => {
     const params = req.params;
 
     if (!params) {
@@ -164,25 +163,24 @@ export const postChannelGreetStartHandler: CustomRoute["handler"] = (
       console.log("Holiday!");
       res.writeHead(200);
       res.end("Holiday!");
+      return;
     }
 
-    return client.chat.postMessage({
+    const response = client.chat.postMessage({
       channel: params["id"],
       text: toTitle(date),
       blocks: toBlocks(toTitle(date), await toReactionRecords(date)),
     });
+
+    res.writeHead(200);
+    res.end(JSON.stringify(response));
   };
 
-  handler()
-    .then((response: ChatPostMessageResponse): void => {
-      res.writeHead(200);
-      res.end(JSON.stringify(response));
-    })
-    .catch((error) => {
-      console.error(error);
-      res.writeHead(500);
-      res.end(error instanceof Error ? error.message : "Internal Server Error");
-    });
+  handler().catch((error) => {
+    console.error(error);
+    res.writeHead(500);
+    res.end(error instanceof Error ? error.message : "Internal Server Error");
+  });
 };
 
 const reactionEventHandler: Middleware<

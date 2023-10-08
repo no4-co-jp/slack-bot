@@ -1,5 +1,4 @@
 import type { Block, CustomRoute, KnownBlock } from "@slack/bolt";
-import type { ChatPostMessageResponse } from "@slack/web-api";
 import type { ParamsIncomingMessage } from "@slack/bolt/dist/receivers/ParamsIncomingMessage";
 import type { ServerResponse } from "http";
 import { client } from "~/client";
@@ -45,7 +44,7 @@ export const postChannelGreetEndHandler: CustomRoute["handler"] = (
   req: ParamsIncomingMessage,
   res: ServerResponse
 ): void => {
-  const handler = async (): Promise<ChatPostMessageResponse> => {
+  const handler = async (): Promise<void> => {
     const params = req.params;
 
     if (!params) {
@@ -58,23 +57,22 @@ export const postChannelGreetEndHandler: CustomRoute["handler"] = (
       console.log("Holiday!");
       res.writeHead(200);
       res.end("Holiday!");
+      return;
     }
 
-    return client.chat.postMessage({
+    const response = client.chat.postMessage({
       channel: params["id"],
       text: toTitle(date),
       blocks: toBlocks(date),
     });
+
+    res.writeHead(200);
+    res.end(JSON.stringify(response));
   };
 
-  handler()
-    .then((response: ChatPostMessageResponse): void => {
-      res.writeHead(200);
-      res.end(JSON.stringify(response));
-    })
-    .catch((error) => {
-      console.error(error);
-      res.writeHead(500);
-      res.end(error instanceof Error ? error.message : "Internal Server Error");
-    });
+  handler().catch((error) => {
+    console.error(error);
+    res.writeHead(500);
+    res.end(error instanceof Error ? error.message : "Internal Server Error");
+  });
 };
