@@ -44,23 +44,34 @@ const toReactionRecords = async (
   reactions: Reaction[] = []
 ): Promise<ReactionRecord[]> => {
   const users = await fetchUsers();
-  const wfoUserIds = await fetchWFOUsers(date);
-  const leaveUserIds = await fetchLeaveUsers(date);
 
+  const reactedUserIds = reactions.flatMap(({ users }: Reaction): string[] => {
+    return users ?? [];
+  });
+  const reactedUserIdSet = new Set<string>(reactedUserIds);
+
+  const wfoUserIds = (await fetchWFOUsers(date)).filter(
+    (id: string): boolean => {
+      return !reactedUserIdSet.has(id);
+    }
+  );
   const wfoUserIdSet = new Set<string>(wfoUserIds);
 
+  const leaveUserIds = (await fetchLeaveUsers(date)).filter(
+    (id: string): boolean => {
+      return !reactedUserIdSet.has(id);
+    }
+  );
   const leaveUserIdSet = new Set<string>(leaveUserIds);
 
-  const reactedUserIdSet = new Set<string>([
-    ...reactions.flatMap(({ users }: Reaction): string[] => {
-      return users ?? [];
-    }),
+  const reactedAllUserIdSet = new Set<string>([
+    ...reactedUserIds,
     ...wfoUserIds,
     ...leaveUserIds,
   ]);
 
   const noReactedUsers: Member[] = users.filter(({ id }: Member): boolean => {
-    return !id || !reactedUserIdSet.has(id);
+    return !id || !reactedAllUserIdSet.has(id);
   });
 
   return [
