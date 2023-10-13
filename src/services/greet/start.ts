@@ -14,7 +14,7 @@ import { format } from "date-fns";
 import type { StringIndexed } from "@slack/bolt/dist/types/helpers";
 import { utcToZonedTime } from "date-fns-tz";
 import { fetchReactions, fetchUsers } from "~/apis/slack";
-import { fetchWFOUsers, fetchLeaveUsers } from "~/apis/sheet";
+import { fetchWFOUsers, fetchLeaveUsers, fetchHiddenUsers } from "~/apis/sheet";
 import { isHoliday } from "~/apis/holiday";
 
 const trigger = ":ohayou:";
@@ -70,8 +70,19 @@ const toReactionRecords = async (
     ...leaveUserIds,
   ]);
 
+  const hiddenUserIds = (await fetchHiddenUsers(date)).filter(
+    (id: string): boolean => {
+      return !reactedUserIdSet.has(id);
+    }
+  );
+  const hiddenUserIdSet = new Set<string>(hiddenUserIds);
+
   const noReactedUsers: Member[] = users.filter(({ id }: Member): boolean => {
-    return !id || !reactedAllUserIdSet.has(id);
+    return (
+      id !== undefined &&
+      !reactedAllUserIdSet.has(id) &&
+      !hiddenUserIdSet.has(id)
+    );
   });
 
   return [
