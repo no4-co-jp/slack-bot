@@ -51,6 +51,29 @@ export const fetchLeaveUsers = async (date: Date): Promise<string[]> => {
   }
 };
 
+export const fetchAMLeaveUsers = async (date: Date): Promise<string[]> => {
+  const targetDate = format(utcToZonedTime(date, "Asia/Tokyo"), "yyyy/MM/dd");
+
+  const key = `google.sheets.am-leave.users.list.${targetDate}`;
+  const cached = cache.get<string[]>(key);
+
+  if (cached) {
+    console.log(`[Cache Hit]${key}`);
+    return cached;
+  }
+
+  try {
+    const users = await fetchUsers(date, ["AM休"]);
+
+    cache.set<string[]>(key, users, 60);
+
+    return users;
+  } catch (error) {
+    console.error(error);
+    return [];
+  }
+};
+
 export const fetchHiddenUsers = async (date: Date): Promise<string[]> => {
   const targetDate = format(utcToZonedTime(date, "Asia/Tokyo"), "yyyy/MM/dd");
 

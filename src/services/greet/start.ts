@@ -14,7 +14,12 @@ import { format } from "date-fns";
 import type { StringIndexed } from "@slack/bolt/dist/types/helpers";
 import { utcToZonedTime } from "date-fns-tz";
 import { fetchReactions, fetchUsers } from "~/apis/slack";
-import { fetchWFOUsers, fetchLeaveUsers, fetchHiddenUsers } from "~/apis/sheet";
+import {
+  fetchWFOUsers,
+  fetchLeaveUsers,
+  fetchHiddenUsers,
+  fetchAMLeaveUsers,
+} from "~/apis/sheet";
 import { isHoliday } from "~/apis/holiday";
 
 const trigger = ":ohayou:";
@@ -64,10 +69,18 @@ const toReactionRecords = async (
   );
   const leaveUserIdSet = new Set<string>(leaveUserIds);
 
+  const amLeaveUserIds = (await fetchAMLeaveUsers(date)).filter(
+    (id: string): boolean => {
+      return !reactedUserIdSet.has(id);
+    }
+  );
+  const amLeaveUserIdSet = new Set<string>(amLeaveUserIds);
+
   const reactedAllUserIdSet = new Set<string>([
     ...reactedUserIds,
     ...wfoUserIds,
     ...leaveUserIds,
+    ...amLeaveUserIds,
   ]);
 
   const hiddenUserIds = (await fetchHiddenUsers(date)).filter(
@@ -115,6 +128,16 @@ const toReactionRecords = async (
             name: "oyasumi",
             users: users.filter(({ id }: Member): boolean => {
               return !!id && leaveUserIdSet.has(id);
+            }),
+          },
+        ]
+      : []),
+    ...(amLeaveUserIdSet.size > 0
+      ? [
+          {
+            name: "午前半休",
+            users: users.filter(({ id }: Member): boolean => {
+              return !!id && amLeaveUserIdSet.has(id);
             }),
           },
         ]
